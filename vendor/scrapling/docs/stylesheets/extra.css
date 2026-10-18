@@ -1,0 +1,50 @@
+.md-grid {
+  max-width: 90%;
+}
+
+@font-face {
+  font-family: 'Maple Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(https://cdn.jsdelivr.net/fontsource/fonts/maple-mono@latest/latin-400-normal.woff2) format('woff2'), url(https://cdn.jsdelivr.net/fontsource/fonts/maple-mono@latest/latin-400-normal.woff) format('woff');
+}
+
+:root {
+  --md-code-font: 'Maple Mono';
+}
+
+[dir="rtl"] .md-typeset code {
+  unicode-bidi: isolate;
+}
+
+[align="center"] code {
+  font-family: 'Maple Mono';
+  font-style: italic;
+  font-weight: 800;
+}
+
+/* Announcement banner background */
+[data-md-color-scheme="default"] .md-banner {
+  background-color: #232946;
+}
+
+[data-md-color-scheme="slate"] .md-banner {
+  background-color: #141428;
+}
+
+@media screen and (max-width: 59.984375em) {
+  [dir="rtl"] .md-select__inner {
+    left: 0;
+    transform: translateY(.3rem);
+  }
+
+  [dir="rtl"] .md-select:is(:hover, :focus-within) .md-select__inner {
+    transform: translateY(0);
+  }
+
+  [dir="rtl"] .md-select__inner::after {
+    left: 1rem;
+    right: auto;
+  }
+}

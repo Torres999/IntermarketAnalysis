@@ -1,0 +1,10 @@
+data/*
+!data/.gitkeep
+.browsers/
+data/*.html
+scripts/debug_*.html
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+vendor/scrapling/.git/

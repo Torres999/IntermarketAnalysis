@@ -1,0 +1,28 @@
+# See https://docs.readthedocs.com/platform/stable/intro/zensical.html for details
+# Example: https://github.com/readthedocs/test-builds/tree/zensical
+
+version: 2
+
+build:
+  os: ubuntu-24.04
+  apt_packages:
+    - pngquant
+  tools:
+    python: "3.13"
+  jobs:
+    install:
+      - pip install -r docs/requirements.txt
+      - pip install ".[all]"
+    build:
+      html:
+        - |
+          case "$READTHEDOCS_LANGUAGE" in
+            en) config=zensical.yml ;;
+            pt-br) config=zensical.pt-BR.yml ;;
+            zh-cn) config=zensical.zh.yml ;;
+            *) config="zensical.$READTHEDOCS_LANGUAGE.yml" ;;
+          esac
+          zensical build --config-file "$config"
+    post_build:
+      - mkdir -p "$READTHEDOCS_OUTPUT/html/"
+      - cp -R site/. "$READTHEDOCS_OUTPUT/html/"

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>跨市场指标看板</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="/static/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div>
+        <h1>跨市场指标看板</h1>
+        <p class="subtitle">中国 10 年国债 · 人民币汇率指数 · 上证指数（本地 SQLite）</p>
+      </div>
+      <p id="statusLine" class="status-line">正在加载…</p>
+    </header>
+
+    <section class="dashboard-row" data-panel="1">
+      <div class="controls card">
+        <label class="field">
+          <span>起始日期</span>
+          <input type="date" id="fromDate1" />
+        </label>
+        <label class="field">
+          <span>结束日期</span>
+          <input type="date" id="toDate1" />
+        </label>
+        <label class="field field-series">
+          <span>指标（Ctrl 多选）</span>
+          <select id="seriesSelect1" multiple size="6"></select>
+        </label>
+        <div class="actions">
+          <button id="applyBtn1" type="button">更新图表</button>
+        </div>
+        <p id="panelStatus1" class="panel-status">—</p>
+      </div>
+      <div class="chart-wrap card">
+        <canvas id="marketChart1" aria-label="市场指标折线图 1"></canvas>
+        <p id="emptyHint1" class="empty-hint hidden">当前区间无数据，请扩大日期范围或运行 <code>python main.py scrape</code></p>
+      </div>
+    </section>
+
+    <section class="dashboard-row" data-panel="2">
+      <div class="controls card">
+        <label class="field">
+          <span>起始日期</span>
+          <input type="date" id="fromDate2" />
+        </label>
+        <label class="field">
+          <span>结束日期</span>
+          <input type="date" id="toDate2" />
+        </label>
+        <label class="field field-series">
+          <span>指标（Ctrl 多选）</span>
+          <select id="seriesSelect2" multiple size="6"></select>
+        </label>
+        <div class="actions">
+          <button id="applyBtn2" type="button">更新图表</button>
+        </div>
+        <p id="panelStatus2" class="panel-status">—</p>
+      </div>
+      <div class="chart-wrap card">
+        <canvas id="marketChart2" aria-label="市场指标折线图 2"></canvas>
+        <p id="emptyHint2" class="empty-hint hidden">当前区间无数据，请扩大日期范围或运行 <code>python main.py scrape</code></p>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <small>增量更新：<code>python main.py scrape</code> · 看板：<code>python main.py serve</code></small>
+    </footer>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

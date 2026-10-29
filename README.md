@@ -1,6 +1,12 @@
 # IntermarketAnalysis
 
-使用 [Scrapling](https://github.com/D4Vinci/Scrapling) 增量抓取跨市场指标，写入本地 SQLite，并通过内置看板按日期区间对比折线图。
+## 关于
+
+**A 股跨市场本地看板**：自动抓取股、债、汇、商品等公开数据，存进本机 SQLite，用浏览器看双图对比和简单分析摘要。
+
+- **适合谁**：想自己盯 A 股与周边市场、又不想依赖付费终端或在线图表的人  
+- **你能得到**：增量更新的历史序列、归一化折线、快捷预设（宽基 / 期现 / 四腿等）、股债汇与指数 SMT 文字摘要  
+- **技术栈**：Python + [Scrapling](https://github.com/D4Vinci/Scrapling) 抓取，内置静态页 + Chart.js，无重型 Web 框架
 
 <p align="center">
   <a href="https://github.com/Torres999/IntermarketAnalysis">
@@ -10,7 +16,7 @@
 <p align="center"><sub>上下两块面板默认同屏对比；快捷预设会同步指标，也可分别多选做差异分析。</sub></p>
 
 <p align="center">
-  <strong>一键使用</strong>：双击 <code>start.bat</code>（或 <code>.\start.ps1</code>）自动更新数据并打开
+  <strong>最快上手</strong>：安装后双击 <code>start.bat</code>（或运行 <code>.\start.ps1</code>），浏览器打开
   <a href="http://127.0.0.1:8765/">http://127.0.0.1:8765/</a>
 </p>
 
@@ -39,68 +45,42 @@ Scrapling 源码已 vendored 在 `vendor/scrapling/`，通过 `requirements.txt`
 
 选型与稳定性说明见 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)。
 
-图表页需点击底部 **「5 年」** 后再从网络接口解析（见 `intermarket_analysis/scrapers/`）。
+部分站点需在图表页选择 **「5 年」** 后再解析接口（见 `intermarket_analysis/scrapers/`）。
 
 ## 环境要求
 
 - Python 3.10+
-- 除 Python 与 Scrapling（含 Patchright 浏览器）外，无 FastAPI/Django 等额外框架依赖
-- 图表使用 vendored 的 Chart.js（`web/static/chart.umd.min.js`）
+- Windows 上推荐 PowerShell；`setup.ps1` / `start.ps1` 为 PowerShell 脚本
+- 图表使用项目内 vendored 的 Chart.js（`web/static/chart.umd.min.js`）
 
 ## 安装
 
+1. 克隆本仓库并进入项目目录  
+2. 在项目根目录执行：
+
 ```powershell
-cd G:\youtube\IntermarketAnalysis
 .\setup.ps1
 ```
 
-> Scrapling 使用 **Patchright**。`setup.ps1` 会把浏览器下载到项目内 `.browsers/`。  
-> 若 `patchright install chromium` 因网络超时失败，可改用本机已安装的 Chrome：
->
-> ```powershell
-> $env:INTERMARKET_REAL_CHROME = "1"
-> python main.py scrape
-> ```
+脚本会创建虚拟环境、安装依赖，并把 Patchright 浏览器下载到项目下的 `.browsers/`。  
+若浏览器下载失败，可设置 `$env:INTERMARKET_REAL_CHROME = "1"` 改用本机 Chrome 再运行 `python main.py scrape`。
 
 ## 使用
 
-**推荐：只打开网页**
+**日常**：在项目根目录运行 `.\start.ps1` 或双击 `start.bat`（增量抓取 + 启动看板）。
+
+其他常用命令（均在项目根目录、已激活 venv 或直接用 `python`）：
 
 ```powershell
-.\start.ps1
-# 或双击 start.bat
+python main.py scrape          # 仅增量抓取
+python main.py backfill-charts # 清空并重抓图表类序列
+python main.py analyze         # 刷新多资产分析摘要
+python main.py serve           # 仅启动看板
+python main.py run             # 抓取 + 看板（同 start）
+python main.py start --full-backfill   # 首次全量回填后再启动
 ```
 
-首次若 Investing 序列为空，会自动触发一次图表全量回填（较慢）。也可手动：
-
-```powershell
-python main.py start --full-backfill
-```
-
-高级命令：
-
-```powershell
-$env:PLAYWRIGHT_BROWSERS_PATH = "G:\youtube\IntermarketAnalysis\.browsers"
-
-# 增量抓取（首次约 5 年，之后从上次最后日期向前重叠 7 天）
-python main.py scrape
-
-# 清空并重抓所有图表类序列（指数、期货、国债 yield 等）
-python main.py backfill-charts
-
-# A 股多资产分析摘要（股债汇 + 宽基 SMT + 期现价差）
-python main.py analyze
-
-# 启动本地看板
-python main.py serve
-
-# 抓取并启动看板（同 start）
-python main.py run
-```
-
-浏览器打开：<http://127.0.0.1:8765/>
-
-数据文件：`data/market.db`（SQLite，首次抓取后生成，未纳入 Git）
+看板地址：<http://127.0.0.1:8765/> · 数据文件：`data/market.db`（首次抓取后生成，未纳入 Git）
 
 ## 增量逻辑
 

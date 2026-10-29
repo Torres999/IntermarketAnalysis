@@ -13,4 +13,4 @@ Write-Host "If download fails, set INTERMARKET_REAL_CHROME=1 when Google Chrome 
 Remove-Item -Recurse -Force (Join-Path $env:PLAYWRIGHT_BROWSERS_PATH "__dirlock") -ErrorAction SilentlyContinue
 patchright install chromium
 
-Write-Host "Setup complete. Run: python main.py run"
+Write-Host "Setup complete. Double-click start.bat or run: .\start.ps1"

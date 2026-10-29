@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import date, datetime, timezone
 from urllib.parse import quote
 
@@ -8,7 +9,7 @@ from scrapling.fetchers import StealthySession
 
 from intermarket_analysis.browser_config import stealth_kwargs
 from intermarket_analysis.scrapers.browser_ui import select_chart_range, select_quote_mode_tab
-from intermarket_analysis.scrapers.investing_api import fetch_investing_history, resolve_pair_id
+from intermarket_analysis.scrapers.investing_api import fetch_investing_history
 from intermarket_analysis.scrapers.utils import (
     compute_fetch_range,
     parse_tv_history,
@@ -82,7 +83,7 @@ def _fetch_via_tradingview_browser(start: date, end: date) -> list[tuple[date, f
             max_recorded_requests=4000,
             **stealth_kwargs(),
         ) as session:
-            session.fetch(page_url, network_idle=True, page_action=_action)
+            session.fetch(page_url, network_idle=False, load_dom=True, page_action=_action)
             _merge_tv_history(session, start, end, dedup)
 
     for page_url in (TV_CHART_PAGE, TV_SYMBOL_PAGE):
@@ -109,7 +110,7 @@ def _fetch_via_http(start: date, end: date) -> list[tuple[date, float]]:
 
 def _fetch_via_investing_futures_price(start: date, end: date) -> list[tuple[date, float]]:
     """China 10Y T-bond futures price (Investing CFTc1), ~same asset class as TV「价格」."""
-    pair_id = resolve_pair_id(FUTURES_CHART_PAGE, default=FUTURES_PAIR_ID)
+    pair_id = FUTURES_PAIR_ID
     rows = fetch_investing_history(
         pair_id,
         start,
@@ -122,7 +123,6 @@ def _fetch_via_investing_futures_price(start: date, end: date) -> list[tuple[dat
         pd_max_value=PRICE_MAX,
     )
     if len(rows) < 50:
-        pair_id = resolve_pair_id(FUTURES_HISTORICAL_PAGE, default=pair_id)
         extra = fetch_investing_history(
             pair_id,
             start,
@@ -139,18 +139,27 @@ def _fetch_via_investing_futures_price(start: date, end: date) -> list[tuple[dat
     return [(d, v) for d, v in rows if _is_price_value(v)]
 
 
+def _tv_http_enabled() -> bool:
+    return os.environ.get("CN10Y_TRY_TRADINGVIEW", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
 def fetch_cn10y(start: date, end: date) -> list[tuple[date, float]]:
+    """CN 10Y bond **price**; default source is Investing T-bond futures (no TradingView)."""
     dedup: dict[date, float] = {}
-    for loader in (_fetch_via_investing_futures_price, _fetch_via_tradingview_browser):
+    loaders = [_fetch_via_investing_futures_price]
+    if _tv_http_enabled():
+        loaders.extend((_fetch_via_http, _fetch_via_tradingview_browser))
+
+    for loader in loaders:
         for obs, value in loader(start, end):
             if start <= obs <= end and _is_price_value(value):
                 dedup[obs] = value
         if len(dedup) >= 50:
             return sorted(dedup.items(), key=lambda x: x[0])
-    if len(dedup) < 20:
-        for obs, value in _fetch_via_http(start, end):
-            if start <= obs <= end and _is_price_value(value):
-                dedup[obs] = value
     return sorted(dedup.items(), key=lambda x: x[0])
 
 

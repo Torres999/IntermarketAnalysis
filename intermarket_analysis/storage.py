@@ -22,7 +22,11 @@ def init_db(db_path: Path = DB_PATH) -> None:
                 series_id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 source_url TEXT NOT NULL,
-                unit TEXT NOT NULL DEFAULT ''
+                unit TEXT NOT NULL DEFAULT '',
+                asset_class TEXT NOT NULL DEFAULT '',
+                compare_group TEXT NOT NULL DEFAULT '',
+                spot_series_id TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1
             );
             CREATE TABLE IF NOT EXISTS observations (
                 series_id TEXT NOT NULL,
@@ -41,19 +45,49 @@ def init_db(db_path: Path = DB_PATH) -> None:
             CREATE INDEX IF NOT EXISTS idx_obs_series_date ON observations(series_id, obs_date);
             """
         )
+        _migrate_series_meta_columns(conn)
         for spec in SERIES.values():
             conn.execute(
                 """
-                INSERT INTO series_meta (series_id, name, source_url, unit)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO series_meta (
+                    series_id, name, source_url, unit,
+                    asset_class, compare_group, spot_series_id, enabled
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(series_id) DO UPDATE SET
                     name = excluded.name,
                     source_url = excluded.source_url,
-                    unit = excluded.unit
+                    unit = excluded.unit,
+                    asset_class = excluded.asset_class,
+                    compare_group = excluded.compare_group,
+                    spot_series_id = excluded.spot_series_id,
+                    enabled = excluded.enabled
                 """,
-                (spec.series_id, spec.name, spec.source_url, spec.unit),
+                (
+                    spec.series_id,
+                    spec.name,
+                    spec.source_url,
+                    spec.unit,
+                    spec.asset_class,
+                    spec.compare_group,
+                    spec.spot_series_id,
+                    1 if spec.enabled else 0,
+                ),
             )
         _migrate_cn10y_yield_archive(conn)
+
+
+def _migrate_series_meta_columns(conn: sqlite3.Connection) -> None:
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(series_meta)")}
+    additions = {
+        "asset_class": "TEXT NOT NULL DEFAULT ''",
+        "compare_group": "TEXT NOT NULL DEFAULT ''",
+        "spot_series_id": "TEXT",
+        "enabled": "INTEGER NOT NULL DEFAULT 1",
+    }
+    for name, ddl in additions.items():
+        if name not in cols:
+            conn.execute(f"ALTER TABLE series_meta ADD COLUMN {name} {ddl}")
 
 
 def _migrate_cn10y_yield_archive(conn: sqlite3.Connection) -> None:
@@ -193,16 +227,5 @@ def clear_series_data(series_ids: list[str], db_path: Path = DB_PATH) -> None:
 
 
 def list_series_meta(db_path: Path = DB_PATH) -> list[SeriesSpec]:
-    with connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT series_id, name, source_url, unit FROM series_meta ORDER BY series_id"
-        ).fetchall()
-    return [
-        SeriesSpec(
-            series_id=r["series_id"],
-            name=r["name"],
-            source_url=r["source_url"],
-            unit=r["unit"] or "",
-        )
-        for r in rows
-    ]
+    _ = db_path
+    return sorted(SERIES.values(), key=lambda s: s.series_id)

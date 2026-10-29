@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from datetime import date, datetime
 
-from intermarket_analysis.scrapers.utils import browser_fetch_excel_post, compute_fetch_range
+from intermarket_analysis.scrapers.utils import browser_fetch_excel_post, compute_fetch_range, http_fetch_excel_post
 from intermarket_analysis.xlsx_minimal import read_first_sheet_rows
 
 
@@ -106,7 +106,10 @@ def fetch_rmb_indices(
             "https://www.chinamoney.com.cn/dqs/rest/cm-u-bk-fx/RmbIdxHisExcel"
             f"?lang=CN&startDate={chunk_start.isoformat()}&endDate={chunk_end.isoformat()}&t={t_ms}"
         )
-        content = browser_fetch_excel_post(page_url, excel_url)
+        try:
+            content = http_fetch_excel_post(page_url, excel_url)
+        except RuntimeError:
+            content = browser_fetch_excel_post(page_url, excel_url, headless=True)
         rows = read_first_sheet_rows(content)
         part = _parse_excel_rows(rows, chunk_start, chunk_end)
         for key, points in part.items():

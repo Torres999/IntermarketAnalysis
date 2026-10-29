@@ -27,6 +27,23 @@ def compute_fetch_range(
     return start, end
 
 
+def http_fetch_excel_post(page_url: str, excel_url: str) -> bytes:
+    """Download Excel export via HTTP POST (no browser). Used by chinamoney RMB indices."""
+    resp = Fetcher.post(
+        excel_url,
+        impersonate="chrome",
+        timeout=60,
+        headers={
+            "Referer": page_url,
+            "Origin": "https://www.chinamoney.com.cn",
+        },
+    )
+    raw = resp.body if getattr(resp, "body", None) else b""
+    if not raw:
+        raise RuntimeError(f"Empty Excel response from {excel_url}")
+    return bytes(raw)
+
+
 def browser_fetch_excel_post(
     page_url: str,
     excel_url: str,
@@ -105,12 +122,17 @@ def try_http_history(
     *,
     params: dict[str, str | int] | None = None,
     method: str = "GET",
+    timeout: int = 12,
 ) -> dict[str, Any] | None:
     try:
         if method.upper() == "POST":
-            resp = Fetcher.post(url, impersonate="chrome", json=params or {})
+            resp = Fetcher.post(
+                url, impersonate="chrome", json=params or {}, timeout=timeout
+            )
         else:
-            resp = Fetcher.get(url, impersonate="chrome", params=params or {})
+            resp = Fetcher.get(
+                url, impersonate="chrome", params=params or {}, timeout=timeout
+            )
         if resp.status != 200 or not resp.text:
             return None
         return json.loads(resp.text)

@@ -7,7 +7,7 @@ from datetime import date, datetime, timezone
 from scrapling.fetchers import StealthySession
 
 from intermarket_analysis.browser_config import stealth_kwargs
-from intermarket_analysis.scrapers.browser_ui import select_chart_range
+from intermarket_analysis.scrapers.browser_ui import dismiss_investing_overlays, select_chart_range
 from intermarket_analysis.scrapers.utils import parse_tv_history
 
 
@@ -85,9 +85,53 @@ def historical_api_url(pair_id: str, start: date, end: date) -> str:
     )
 
 
+def chart_page_candidates(url: str) -> list[str]:
+    """Try canonical instrument URLs first; fall back when *-chart slugs 404."""
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def add(u: str) -> None:
+        u = u.rstrip("/")
+        if u and u not in seen:
+            seen.add(u)
+            out.append(u)
+
+    add(url)
+    if url.endswith("-chart"):
+        add(url[: -len("-chart")])
+    elif "/indices/" in url and not url.endswith("-historical-data"):
+        add(f"{url.rstrip('/')}-chart")
+    elif "/rates-bonds/" in url and not url.endswith("-historical-data"):
+        add(f"{url.rstrip('/')}-historical-data")
+    return out
+
+
+def _prune_bimodal_scale(dedup: dict[date, float]) -> dict[date, float]:
+    """Drop stray Investing sbcharts scale when two level clusters exist (e.g. SSE ~3k vs SZSE ~12k)."""
+    if len(dedup) < 12:
+        return dedup
+    values = sorted(dedup.values())
+    mid = len(values) // 2
+    low = values[:mid]
+    high = values[mid:]
+    low_med = low[len(low) // 2]
+    high_med = high[len(high) // 2]
+    if high_med <= low_med * 1.35:
+        return dedup
+    threshold = (low_med + high_med) / 2.0
+    low_n = sum(1 for v in values if v < threshold)
+    high_n = len(values) - low_n
+    if high_n >= low_n:
+        return {d: v for d, v in dedup.items() if v >= threshold}
+    return {d: v for d, v in dedup.items() if v < threshold}
+
+
 def resolve_pair_id(page_url: str, *, default: str) -> str:
+    """Return Investing instrument id; use config default unless missing."""
+    if default and default != "0":
+        return default
     with StealthySession(record_requests=True, max_recorded_requests=500, **stealth_kwargs()) as session:
-        session.fetch(page_url, network_idle=True)
+        session.fetch(page_url, network_idle=False, load_dom=True)
         for resp in session.network.search(url_pattern=r"financialdata/historical/", limit=None):
             match = re.search(r"historical/(\d+)", resp.url)
             if match and match.group(1) != "0":
@@ -243,7 +287,12 @@ def _collect_chart_timeframe_data(
                 continue
             payload = json.loads(text)
             if isinstance(payload, dict):
-                _merge_points(dedup, parse_tv_history(payload), start, end)
+                rows = parse_tv_history(payload)
+                if sbcharts_min_value is not None and not _looks_like_price_series(rows, min_value=sbcharts_min_value):
+                    continue
+                if sbcharts_max_value is not None and rows and max(v for _, v in rows) > sbcharts_max_value:
+                    continue
+                _merge_points(dedup, rows, start, end)
         except Exception:
             continue
 
@@ -265,20 +314,9 @@ def fetch_investing_history(
     """Open Investing chart page, click timeframe (5年), read chart APIs from network."""
     dedup: dict[date, float] = {}
 
-    def _dismiss_overlays(page) -> None:
-        try:
-            page.evaluate(
-                """() => {
-                    const wall = document.querySelector('#regwall-container');
-                    if (wall) wall.remove();
-                }"""
-            )
-        except Exception:
-            pass
-
     def _action(page) -> None:
         page.wait_for_timeout(2500)
-        _dismiss_overlays(page)
+        dismiss_investing_overlays(page)
         if quote_tab:
             from intermarket_analysis.scrapers.browser_ui import select_quote_mode_tab
 
@@ -286,7 +324,7 @@ def fetch_investing_history(
         select_chart_range(page, range_label)
 
     with StealthySession(record_requests=True, max_recorded_requests=2000, **stealth_kwargs()) as session:
-        session.fetch(chart_page, network_idle=True, page_action=_action)
+        session.fetch(chart_page, network_idle=False, load_dom=True, page_action=_action)
         _collect_chart_timeframe_data(
             session,
             start,
@@ -311,7 +349,7 @@ def fetch_investing_history(
     if len(dedup) < 80 and range_label == "5年":
         def _action_max(page) -> None:
             page.wait_for_timeout(2500)
-            _dismiss_overlays(page)
+            dismiss_investing_overlays(page)
             if quote_tab:
                 from intermarket_analysis.scrapers.browser_ui import select_quote_mode_tab
 
@@ -319,7 +357,7 @@ def fetch_investing_history(
             select_chart_range(page, "最大值")
 
         with StealthySession(record_requests=True, max_recorded_requests=2000, **stealth_kwargs()) as session:
-            session.fetch(chart_page, network_idle=True, page_action=_action_max)
+            session.fetch(chart_page, network_idle=False, load_dom=True, page_action=_action_max)
             _collect_chart_timeframe_data(
                 session,
                 start,
@@ -345,5 +383,9 @@ def fetch_investing_history(
         cap = sbcharts_abs_max or pd_max_value
         if cap is not None:
             dedup = {d: v for d, v in dedup.items() if v <= cap}
+    if pd_min_value is not None:
+        dedup = {d: v for d, v in dedup.items() if v >= pd_min_value}
+
+    dedup = _prune_bimodal_scale(dedup)
 
     return sorted(dedup.items(), key=lambda x: x[0])

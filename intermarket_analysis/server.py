@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from intermarket_analysis.config import WEB_DIR
+from intermarket_analysis.analysis.run import run_analysis
 from intermarket_analysis.storage import init_db, list_series_meta, query_series
 
 
@@ -58,10 +59,24 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "name": s.name,
                     "unit": s.unit,
                     "source_url": s.source_url,
+                    "asset_class": s.asset_class,
+                    "compare_group": s.compare_group,
+                    "spot_series_id": s.spot_series_id,
                 }
                 for s in list_series_meta()
+                if s.enabled
             ]
             return self._send_json({"series": series})
+
+        if parsed.path == "/api/analysis/summary":
+            qs = parse_qs(parsed.query)
+            start = qs.get("from", [None])[0]
+            end = qs.get("to", [None])[0]
+            start_date = date.fromisoformat(start) if start else None
+            end_date = date.fromisoformat(end) if end else None
+            init_db()
+            payload = run_analysis(start_date, end_date)
+            return self._send_json(payload)
 
         if parsed.path == "/api/data":
             qs = parse_qs(parsed.query)

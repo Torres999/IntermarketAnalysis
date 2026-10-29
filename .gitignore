@@ -7,4 +7,5 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+scrape_run.log
 vendor/scrapling/.git/
